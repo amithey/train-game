@@ -224,10 +224,10 @@
 
         // Game Configuration & 3D Setup
         const LANE_X = [-1.95, 0, 1.95];
-        const FOV = 320;
-        const CAM_H = 6.4;
-        const CAM_DIST = 4.8;
-        const HORIZON = 210;
+        const FOV = 360;
+        const CAM_H = 6.9;
+        const CAM_DIST = 4.5;
+        const HORIZON = 240;
         const DRAW_FAR = 65;
         const TRAIN_H = 2.4;
 
@@ -478,21 +478,23 @@ function mkTrain(lane, z, cars, pal, hasRamp) {
             return { type: kind, lane, z, length: kind === 'gantry' ? 1.2 : 1.4 };
         }
 
-                function addScenery(z) {
-            // Weighted mix so the trackside feels varied instead of uniform.
+        function addScenery(z) {
+            // Dense urban mix — poles and buildings dominate, like Subway Surfers
             const roll = Math.random();
             let kind, off = 0;
-            if (roll < 0.12) kind = 'signal';
-            else if (roll < 0.22) kind = 'light';
-            else if (roll < 0.29) kind = 'gantry';
-            else if (roll < 0.43) kind = 'fence';
-            else if (roll < 0.52) kind = 'equipment';
-            else if (roll < 0.68) kind = 'catenary';
-            else if (roll < 0.76) { kind = 'hut'; off = 2.2 + Math.random() * 2.4; }
-            else if (roll < 0.83) { kind = 'crates'; off = 1.1 + Math.random() * 1.6; }
-            else if (roll < 0.92) { kind = 'bush'; off = 0.8 + Math.random() * 4.5; }
-            else if (roll < 0.97) kind = 'sign';
-            else { kind = 'watertower'; off = 5.5 + Math.random() * 3.5; }
+            if (roll < 0.10) kind = 'signal';
+            else if (roll < 0.18) kind = 'light';
+            else if (roll < 0.24) kind = 'gantry';
+            else if (roll < 0.34) kind = 'fence';
+            else if (roll < 0.40) kind = 'equipment';
+            else if (roll < 0.55) kind = 'catenary';
+            else if (roll < 0.62) { kind = 'billboard'; off = 1.8 + Math.random() * 2.5; }
+            else if (roll < 0.70) { kind = 'hut'; off = 1.6 + Math.random() * 2.2; }
+            else if (roll < 0.78) { kind = 'crates'; off = 0.9 + Math.random() * 1.4; }
+            else if (roll < 0.86) { kind = 'bush'; off = 0.6 + Math.random() * 3.5; }
+            else if (roll < 0.92) kind = 'sign';
+            else if (roll < 0.97) { kind = 'watertower'; off = 4.5 + Math.random() * 3.0; }
+            else { kind = 'building'; off = 3.5 + Math.random() * 4.0; }
 
             scenery.push({
                 z,
@@ -1088,20 +1090,18 @@ function updateGame(dt) {
             quad(projectSoft(xSide, y0, z0), projectSoft(xSide, y1, z0), projectSoft(xSide, y1, z1), projectSoft(xSide, y0, z1), color);
         }
 
-        // Sky & Railway Environment
-                        // ============================================================
-        //  Landscape helpers  (paste directly ABOVE drawSky)
+        // ============================================================
+        //  Landscape helpers v2 (SS urban) — paste ABOVE drawSky
         // ============================================================
 
-        // Colour the horizon fades toward. All distance cues lerp to this.
-        const HAZE_RGB = [206, 224, 236];
+        // Soft warm haze (less washed-out than v1)
+        const HAZE_RGB = [198, 218, 232];
 
         function hash01(n) {
             const s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
             return s - Math.floor(s);
         }
 
-        // Memoised "colour at distance" — cheap enough to call per item per frame.
         const _fogCache = new Map();
         function fog(hex, t) {
             t = clamp(t, 0, 1);
@@ -1117,59 +1117,69 @@ function updateGame(dt) {
             return out;
         }
 
-        // 0 = right in front of the camera, 1 = lost in the haze at DRAW_FAR.
         function fogAmt(z) {
-            return clamp(((z - player.z) / DRAW_FAR - 0.18) / 0.9, 0, 1) * 0.8;
+            // Gentler than v1 so mid-distance city still reads colorful
+            return clamp(((z - player.z) / DRAW_FAR - 0.22) / 0.95, 0, 1) * 0.55;
         }
 
-        // ---- Static parallax silhouette bands, built once at load ----
         const BAND_PERIOD = 720;
 
         function buildHills(seed) {
             const out = [];
-            for (let i = 0; i < 13; i++) {
+            for (let i = 0; i < 11; i++) {
                 const r = hash01(seed + i * 5.3);
-                out.push({ x: (i / 13) * BAND_PERIOD - 40, w: 130 + r * 170, h: 24 + r * 34 });
+                out.push({ x: (i / 11) * BAND_PERIOD - 30, w: 110 + r * 160, h: 18 + r * 28 });
             }
             return out;
         }
 
+        // Dense colorful city blocks (SS skyline) — warm / teal / terracotta palette
         function buildCity(seed) {
             const out = [];
             let x = 0, i = 0;
+            const pal = ['#c4785a', '#7aa8b8', '#d4a574', '#8b9a6b', '#b07a9a', '#6a8fa0', '#c9a06a'];
             while (x < BAND_PERIOD) {
                 const r = hash01(seed + i * 3.7), r2 = hash01(seed + i * 9.1);
-                const w = 15 + r * 32;
-                out.push({ x, w, h: 10 + r2 * 44, tower: r2 > 0.8 });
-                x += w + 2 + r * 11;
+                const w = 18 + r * 38;
+                out.push({
+                    x, w,
+                    h: 22 + r2 * 58,
+                    tower: r2 > 0.82,
+                    roof: r2 > 0.55,
+                    col: pal[(i * 3 + (r * 7) | 0) % pal.length],
+                    win: r2 > 0.35
+                });
+                x += w + 1 + r * 6;
                 i++;
             }
             return out;
         }
 
-        function buildDepot(seed) {
+        // Mid band: rooftops, water towers, billboards, AC units — classic SS clutter
+        function buildRooftops(seed) {
             const out = [];
             let x = 0, i = 0;
             while (x < BAND_PERIOD) {
                 const r = hash01(seed + i * 2.3), r2 = hash01(seed + i * 7.9);
-                const kind = r2 > 0.9 ? 'tower' : r2 > 0.77 ? 'crane' : r2 > 0.66 ? 'stack' : 'shed';
-                const w = kind === 'shed' ? 52 + r * 44 : kind === 'tower' ? 26 : kind === 'crane' ? 58 : 15;
-                out.push({ x, w, h: 16 + r * 24, kind, r });
-                x += w + 7 + r * 18;
+                const kind = r2 > 0.78 ? 'billboard' : r2 > 0.58 ? 'tower' : r2 > 0.4 ? 'ac' : 'roof';
+                const w = kind === 'billboard' ? 36 + r * 28 : kind === 'tower' ? 22 : kind === 'ac' ? 14 : 40 + r * 36;
+                out.push({ x, w, h: 14 + r * 22, kind, r, r2 });
+                x += w + 6 + r * 14;
                 i++;
             }
             return out;
         }
 
+        // Near band: parked trains / containers / graffiti walls peeking over horizon
         function buildYard(seed) {
             const out = [];
             let x = 0, i = 0;
             while (x < BAND_PERIOD) {
                 const r = hash01(seed + i * 4.1);
-                const kind = r > 0.62 ? 'wagon' : r > 0.3 ? 'container' : 'scrub';
-                const w = kind === 'wagon' ? 42 + r * 28 : kind === 'container' ? 28 + r * 16 : 16 + r * 14;
-                out.push({ x, w, h: kind === 'scrub' ? 6 + r * 5 : 10 + r * 8, kind, r });
-                x += w + 12 + r * 30;
+                const kind = r > 0.55 ? 'wagon' : r > 0.25 ? 'container' : 'wall';
+                const w = kind === 'wagon' ? 48 + r * 30 : kind === 'container' ? 26 + r * 18 : 20 + r * 16;
+                out.push({ x, w, h: kind === 'wall' ? 10 + r * 8 : 11 + r * 9, kind, r });
+                x += w + 10 + r * 22;
                 i++;
             }
             return out;
@@ -1186,10 +1196,20 @@ function updateGame(dt) {
 
         const BAND_HILLS = buildHills(3.1);
         const BAND_CITY = buildCity(11.7);
-        const BAND_DEPOT = buildDepot(5.9);
+        const BAND_ROOF = buildRooftops(5.9);
         const BAND_YARD = buildYard(19.3);
-        const CLOUDS_FAR = buildClouds(2.4, 7, 24, 88, 9, 19);
-        const CLOUDS_NEAR = buildClouds(8.8, 5, 32, 106, 19, 33);
+        const CLOUDS_FAR = buildClouds(2.4, 8, 28, 100, 10, 20);
+        const CLOUDS_NEAR = buildClouds(8.8, 5, 40, 130, 20, 36);
+
+        // Side-building color table for 3D facades (drawn in world space)
+        const BLD_PAL = [
+            { wall: '#e8b896', dark: '#b8865e', top: '#f0d0b0', win: '#7ec8e8' },
+            { wall: '#8eb8c8', dark: '#5a8a9a', top: '#b8d8e4', win: '#ffe08a' },
+            { wall: '#d4a0b8', dark: '#9a6a80', top: '#ecc0d0', win: '#a8e0f0' },
+            { wall: '#a8b878', dark: '#708050', top: '#c8d8a0', win: '#90d0e8' },
+            { wall: '#c8b090', dark: '#907858', top: '#e0d0b0', win: '#70c0e0' },
+            { wall: '#90a8c0', dark: '#607888', top: '#b8c8d8', win: '#f0d080' }
+        ];
 
         function cloudPuff(cx, cy, cr, alpha) {
             ctx.globalAlpha = alpha;
@@ -1202,7 +1222,6 @@ function updateGame(dt) {
             ctx.globalAlpha = 1;
         }
 
-        // Walk a silhouette band twice so it wraps seamlessly across the screen.
         function band(items, rate, pad, drawItem) {
             const off = (player.z * rate) % BAND_PERIOD;
             for (let k = 0; k < 2; k++) {
@@ -1215,175 +1234,188 @@ function updateGame(dt) {
             }
         }
 
-function drawSky() {
-            // --- Sky: deeper blue overhead, warm haze at the horizon
+        // Continuous colorful city walls along both sides of the yard (SS DNA).
+        // Only near range — far is handled by the 2D skyline bands.
+        function drawCityWalls() {
+            const z0 = player.z - 1;
+            const z1 = player.z + 42;
+            for (let z = Math.floor(z0 / 5) * 5; z < z1; z += 5) {
+                const r = hash01(z * 1.91);
+                const pal = BLD_PAL[(Math.abs(z * 3) | 0) % BLD_PAL.length];
+                const h = 5.5 + r * 7.5;
+                const depth = 4.2 + r * 1.6;
+                const f = fogAmt(z + depth * 0.5);
+                const wall = fog(pal.wall, f);
+                const dark = fog(pal.dark, f);
+                const top = fog(pal.top, f);
+                // Left wall — outer face well clear of playable lanes (|x|>=5.2)
+                box(-14.5, -5.4, 0, h, z, z + depth, wall, dark, top);
+                // Right wall
+                const palR = BLD_PAL[((Math.abs(z * 5) | 0) + 2) % BLD_PAL.length];
+                const hR = 5.0 + hash01(z * 2.7) * 8.0;
+                box(5.4, 14.5, 0, hR, z, z + depth, fog(palR.wall, f), fog(palR.dark, f), fog(palR.top, f));
+                // Occasional rooftop billboard / water tank on the near buildings
+                if (r > 0.72) {
+                    const side = r > 0.86 ? 1 : -1;
+                    const bx = side * 8.2;
+                    box(bx - 1.1, bx + 1.1, h + 0.1, h + 2.4, z + 0.6, z + 1.0, fog('#e74c3c', f), fog('#922b21', f), fog('#f5b7b1', f));
+                }
+            }
+        }
+
+        function drawSky() {
+            // Bright Subway Surfers daytime sky
             const g = ctx.createLinearGradient(0, 0, 0, HORIZON);
-            g.addColorStop(0, '#1b6ca8');
-            g.addColorStop(0.42, '#4ea8de');
-            g.addColorStop(0.78, '#9bd3ef');
-            g.addColorStop(1, '#dff0f7');
+            g.addColorStop(0, '#2a8fd4');
+            g.addColorStop(0.35, '#5eb8ef');
+            g.addColorStop(0.72, '#a8ddf5');
+            g.addColorStop(1, '#e8f6fc');
             ctx.fillStyle = g;
             ctx.fillRect(0, 0, W, HORIZON);
 
-            // --- Sun with a soft bloom
-            const sunX = W * 0.74, sunY = 52;
-            const glow = ctx.createRadialGradient(sunX, sunY, 4, sunX, sunY, 125);
-            glow.addColorStop(0, 'rgba(255,248,216,0.95)');
-            glow.addColorStop(0.26, 'rgba(255,240,190,0.34)');
-            glow.addColorStop(1, 'rgba(255,240,190,0)');
+            // Soft sun
+            const sunX = W * 0.78, sunY = HORIZON * 0.22;
+            const glow = ctx.createRadialGradient(sunX, sunY, 3, sunX, sunY, 110);
+            glow.addColorStop(0, 'rgba(255,250,220,0.95)');
+            glow.addColorStop(0.3, 'rgba(255,240,180,0.28)');
+            glow.addColorStop(1, 'rgba(255,240,180,0)');
             ctx.fillStyle = glow;
-            ctx.fillRect(sunX - 130, sunY - 130, 260, 260);
-            ctx.fillStyle = 'rgba(255,253,236,0.97)';
-            ctx.beginPath(); ctx.arc(sunX, sunY, 14, 0, Math.PI * 2); ctx.fill();
+            ctx.fillRect(sunX - 115, sunY - 115, 230, 230);
+            ctx.fillStyle = '#fffef0';
+            ctx.beginPath(); ctx.arc(sunX, sunY, 13, 0, Math.PI * 2); ctx.fill();
 
-            // --- Two cloud layers drifting at different rates
+            // Parallax clouds
             ctx.fillStyle = '#ffffff';
-            band(CLOUDS_FAR, 0.9, 70, (c, x) => cloudPuff(x, c.y, c.r, 0.45));
-            band(CLOUDS_NEAR, 2.1, 100, (c, x) => cloudPuff(x, c.y, c.r, 0.8));
+            band(CLOUDS_FAR, 0.85, 70, (c, x) => cloudPuff(x, c.y, c.r, 0.42));
+            band(CLOUDS_NEAR, 2.0, 100, (c, x) => cloudPuff(x, c.y, c.r, 0.78));
 
-            // --- Far hills, almost dissolved into the air
-            ctx.fillStyle = fog('#7b93a8', 0.72);
-            band(BAND_HILLS, 0.35, 12, (h, x) => {
+            // Far soft hills
+            ctx.fillStyle = fog('#9bb0c0', 0.65);
+            band(BAND_HILLS, 0.3, 12, (h, x) => {
                 ctx.beginPath();
                 ctx.moveTo(x, HORIZON);
                 ctx.quadraticCurveTo(x + h.w * 0.5, HORIZON - h.h, x + h.w, HORIZON);
                 ctx.fill();
             });
 
-            // --- Distant city skyline
-            const cityFill = fog('#5d7590', 0.52);
-            const cityTop = fog('#41576e', 0.52);
-            band(BAND_CITY, 0.8, 8, (b, x) => {
-                ctx.fillStyle = cityFill;
+            // Colorful dense city skyline (SS hallmark)
+            band(BAND_CITY, 0.75, 8, (b, x) => {
+                ctx.fillStyle = fog(b.col, 0.35);
                 ctx.fillRect(x, HORIZON - b.h, b.w, b.h);
+                if (b.roof) {
+                    ctx.fillStyle = fog('#5a6670', 0.35);
+                    ctx.fillRect(x - 1, HORIZON - b.h - 4, b.w + 2, 5);
+                }
                 if (b.tower) {
-                    ctx.fillStyle = cityTop;
-                    ctx.fillRect(x + b.w * 0.34, HORIZON - b.h - 15, b.w * 0.32, 15);
+                    ctx.fillStyle = fog('#4a5560', 0.35);
+                    ctx.fillRect(x + b.w * 0.35, HORIZON - b.h - 18, b.w * 0.28, 18);
+                }
+                if (b.win && b.h > 28) {
+                    ctx.fillStyle = 'rgba(255,240,180,0.35)';
+                    for (let wy = HORIZON - b.h + 8; wy < HORIZON - 8; wy += 9) {
+                        for (let wx = x + 4; wx < x + b.w - 5; wx += 8) {
+                            ctx.fillRect(wx, wy, 4, 4);
+                        }
+                    }
                 }
             });
 
-            // --- Mid depot: sheds, water towers, gantry cranes, chimneys
-            const dBody = fog('#2c3e50', 0.28);
-            const dRoof = fog('#1a252f', 0.28);
-            const dWin = fog('#5d7285', 0.32);
-            band(BAND_DEPOT, 2.2, 10, (b, x) => {
-                if (b.kind === 'shed') {
-                    ctx.fillStyle = dBody;
-                    ctx.fillRect(x, HORIZON - b.h, b.w, b.h);
-                    ctx.fillStyle = dRoof;
-                    ctx.beginPath();
-                    ctx.moveTo(x - 3, HORIZON - b.h);
-                    ctx.lineTo(x + b.w * 0.5, HORIZON - b.h - 11 - b.r * 7);
-                    ctx.lineTo(x + b.w + 3, HORIZON - b.h);
-                    ctx.fill();
-                    ctx.fillStyle = dWin;
-                    for (let wx = x + 5; wx < x + b.w - 7; wx += 13) ctx.fillRect(wx, HORIZON - b.h * 0.6, 6, 5);
+            // Rooftop clutter band: billboards, water towers, AC units
+            band(BAND_ROOF, 1.9, 10, (b, x) => {
+                if (b.kind === 'billboard') {
+                    ctx.fillStyle = fog('#e74c3c', 0.22);
+                    ctx.fillRect(x, HORIZON - b.h - 8, b.w, b.h);
+                    ctx.fillStyle = fog('#f1c40f', 0.22);
+                    ctx.fillRect(x + 4, HORIZON - b.h - 4, b.w - 8, b.h * 0.45);
+                    ctx.fillStyle = fog('#566573', 0.22);
+                    ctx.fillRect(x + b.w * 0.45, HORIZON - 8, 4, 8);
                 } else if (b.kind === 'tower') {
-                    ctx.fillStyle = dBody;
-                    ctx.fillRect(x + 3, HORIZON - b.h, 3, b.h);
-                    ctx.fillRect(x + b.w - 6, HORIZON - b.h, 3, b.h);
-                    ctx.fillRect(x + 4, HORIZON - b.h * 0.55, b.w - 8, 2);
-                    ctx.fillStyle = dRoof;
-                    ctx.fillRect(x, HORIZON - b.h - 17, b.w, 16);
+                    ctx.fillStyle = fog('#7f8c8d', 0.22);
+                    ctx.fillRect(x + 6, HORIZON - b.h, 4, b.h);
+                    ctx.fillRect(x + b.w - 10, HORIZON - b.h, 4, b.h);
+                    ctx.fillStyle = fog('#95a5a6', 0.22);
+                    ctx.fillRect(x, HORIZON - b.h - 14, b.w, 14);
                     ctx.beginPath();
-                    ctx.moveTo(x - 2, HORIZON - b.h - 17);
-                    ctx.lineTo(x + b.w * 0.5, HORIZON - b.h - 26);
-                    ctx.lineTo(x + b.w + 2, HORIZON - b.h - 17);
+                    ctx.moveTo(x - 2, HORIZON - b.h - 14);
+                    ctx.lineTo(x + b.w * 0.5, HORIZON - b.h - 22);
+                    ctx.lineTo(x + b.w + 2, HORIZON - b.h - 14);
                     ctx.fill();
-                } else if (b.kind === 'crane') {
-                    ctx.strokeStyle = dRoof;
-                    ctx.lineWidth = 3;
-                    ctx.beginPath();
-                    ctx.moveTo(x + b.w * 0.28, HORIZON);
-                    ctx.lineTo(x + b.w * 0.28, HORIZON - b.h - 23);
-                    ctx.lineTo(x + b.w, HORIZON - b.h - 17);
-                    ctx.stroke();
-                    ctx.lineWidth = 1.5;
-                    ctx.beginPath();
-                    ctx.moveTo(x + b.w * 0.8, HORIZON - b.h - 18);
-                    ctx.lineTo(x + b.w * 0.8, HORIZON - b.h * 0.3);
-                    ctx.stroke();
+                } else if (b.kind === 'ac') {
+                    ctx.fillStyle = fog('#bdc3c7', 0.22);
+                    ctx.fillRect(x, HORIZON - b.h, b.w, b.h);
+                    ctx.fillStyle = fog('#7f8c8d', 0.22);
+                    ctx.fillRect(x + 2, HORIZON - b.h + 2, b.w - 4, 3);
                 } else {
-                    ctx.fillStyle = dBody;
-                    ctx.fillRect(x, HORIZON - b.h - 24, b.w, b.h + 24);
-                    ctx.fillStyle = 'rgba(255,255,255,0.22)';
-                    ctx.beginPath(); ctx.arc(x + b.w * 0.5, HORIZON - b.h - 32, 8 + b.r * 6, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = fog('#a67c52', 0.22);
+                    ctx.fillRect(x, HORIZON - b.h, b.w, b.h);
+                    ctx.fillStyle = fog('#6e4c32', 0.22);
+                    ctx.beginPath();
+                    ctx.moveTo(x - 2, HORIZON - b.h);
+                    ctx.lineTo(x + b.w * 0.5, HORIZON - b.h - 8);
+                    ctx.lineTo(x + b.w + 2, HORIZON - b.h);
+                    ctx.fill();
                 }
             });
 
-            // --- Aerial haze so everything distant melts into the horizon
-            const hz = ctx.createLinearGradient(0, HORIZON - 96, 0, HORIZON + 2);
-            hz.addColorStop(0, 'rgba(216,232,242,0)');
-            hz.addColorStop(0.6, 'rgba(216,232,242,0.4)');
-            hz.addColorStop(1, 'rgba(228,240,247,0.9)');
+            // Soft horizon haze (lighter than v1)
+            const hz = ctx.createLinearGradient(0, HORIZON - 70, 0, HORIZON + 2);
+            hz.addColorStop(0, 'rgba(220,236,246,0)');
+            hz.addColorStop(0.55, 'rgba(220,236,246,0.28)');
+            hz.addColorStop(1, 'rgba(232,244,250,0.72)');
             ctx.fillStyle = hz;
-            ctx.fillRect(0, HORIZON - 96, W, 98);
+            ctx.fillRect(0, HORIZON - 70, W, 72);
 
-            // --- Ballast yard floor below the horizon
+            // Yard floor under horizon
             const yard = ctx.createLinearGradient(0, HORIZON, 0, H);
-            yard.addColorStop(0, '#8b98a2');
-            yard.addColorStop(0.09, '#5a626a');
-            yard.addColorStop(0.5, '#3d4348');
-            yard.addColorStop(1, '#23272a');
+            yard.addColorStop(0, '#9aa6ae');
+            yard.addColorStop(0.08, '#5e666e');
+            yard.addColorStop(0.45, '#3f454a');
+            yard.addColorStop(1, '#24282c');
             ctx.fillStyle = yard;
             ctx.fillRect(0, HORIZON, W, H - HORIZON);
 
-            // --- Near yard clutter: parked wagons, containers, scrub
-            band(BAND_YARD, 7.5, 10, (b, x) => {
+            // Near yard clutter peeking over the horizon line
+            band(BAND_YARD, 6.8, 10, (b, x) => {
                 if (b.kind === 'wagon') {
-                    ctx.fillStyle = fog(b.r > 0.82 ? '#7d4a2e' : '#39424a', 0.16);
+                    ctx.fillStyle = fog(b.r > 0.8 ? '#c0392b' : '#2980b9', 0.12);
                     ctx.fillRect(x, HORIZON - b.h, b.w, b.h);
-                    ctx.fillStyle = fog('#20262b', 0.16);
+                    ctx.fillStyle = fog('#1a252f', 0.12);
                     ctx.fillRect(x, HORIZON - 2, b.w, 3);
                 } else if (b.kind === 'container') {
-                    ctx.fillStyle = fog(b.r > 0.5 ? '#2e6f6a' : '#8a5a2b', 0.16);
+                    ctx.fillStyle = fog(b.r > 0.5 ? '#16a085' : '#d68910', 0.12);
                     ctx.fillRect(x, HORIZON - b.h, b.w, b.h);
-                    ctx.fillStyle = 'rgba(0,0,0,0.16)';
-                    for (let rx = x + 2; rx < x + b.w - 2; rx += 5) ctx.fillRect(rx, HORIZON - b.h + 1, 1.5, b.h - 2);
                 } else {
-                    ctx.fillStyle = fog('#40593c', 0.18);
-                    ctx.beginPath(); ctx.arc(x + b.w * 0.5, HORIZON - b.h * 0.4, b.h, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = fog('#7d3c98', 0.14);
+                    ctx.fillRect(x, HORIZON - b.h, b.w, b.h);
                 }
             });
 
-            // --- Faint yard tracks running off to the vanishing point (one path, one stroke)
+            // Perspective guide rails into the vanishing point
             const vanX = W / 2;
-            ctx.strokeStyle = 'rgba(133,146,158,0.4)';
-            ctx.lineWidth = 1.1;
+            ctx.strokeStyle = 'rgba(160,172,182,0.45)';
+            ctx.lineWidth = 1.15;
             ctx.beginPath();
-            for (let x = -140; x <= W + 140; x += 34) {
-                ctx.moveTo(vanX + (x - vanX) * 0.02, HORIZON);
+            for (let x = -160; x <= W + 160; x += 30) {
+                ctx.moveTo(vanX + (x - vanX) * 0.015, HORIZON);
                 ctx.lineTo(x, H);
             }
             ctx.stroke();
         }
 
-                function drawGround() {
+        function drawGround() {
             const z0 = player.z - 2, z1 = player.z + DRAW_FAR;
             const left = -16.0, right = 16.0;
 
-            // Verges: grass and gravel outside the yard, so the world has an edge
-            quad(project(-27, 0, z1), project(left, 0, z1), project(left, 0, z0), project(-27, 0, z0), '#46523c');
-            quad(project(right, 0, z1), project(27, 0, z1), project(27, 0, z0), project(right, 0, z0), '#46523c');
-            quad(project(-19.2, 0.002, z1), project(-15.6, 0.002, z1), project(-15.6, 0.002, z0), project(-19.2, 0.002, z0), '#5b5a4e');
-            quad(project(15.6, 0.002, z1), project(19.2, 0.002, z1), project(19.2, 0.002, z0), project(15.6, 0.002, z0), '#5b5a4e');
+            // Outer urban verge (pavement / dirt between buildings and yard)
+            quad(project(-20, 0, z1), project(left, 0, z1), project(left, 0, z0), project(-20, 0, z0), '#4a5348');
+            quad(project(right, 0, z1), project(20, 0, z1), project(20, 0, z0), project(right, 0, z0), '#4a5348');
 
-            // Main ballast corridor (unchanged geometry)
+            // Main ballast corridor — geometry unchanged
             quad(project(left, 0, z1), project(right, 0, z1), project(right, 0, z0), project(left, 0, z0), '#3d4449');
-            quad(project(-3.15, 0, z1), project(3.15, 0, z1), project(3.15, 0, z0), project(-3.15, 0, z0), '#56514c');
+            // Playable strip — slightly warmer gravel so the 3 lanes read clearly
+            quad(project(-3.15, 0, z1), project(3.15, 0, z1), project(3.15, 0, z0), project(-3.15, 0, z0), '#5c564e');
 
-            // Weathering: deterministic oil stains, rust and puddles, never on the playable corridor
-            for (let z = Math.floor(z0 / 3) * 3; z < player.z + 36; z += 3) {
-                const r = hash01(z * 1.37);
-                if (r < 0.6) continue;
-                const px = lerp(-13.8, 13.8, hash01(z * 2.11));
-                if (Math.abs(px) < 4.3) continue;
-                const w = 0.5 + r * 1.2;
-                const col = r > 0.9 ? '#3c4d55' : r > 0.76 ? '#4a3a30' : '#33383b';
-                quad(project(px - w, 0.008, z + 1.7), project(px + w, 0.008, z + 1.7), project(px + w, 0.008, z), project(px - w, 0.008, z), col);
-            }
-
-            // Side tracks (unchanged positions)
+            // Side tracks (positions unchanged)
             const yardTracks = [-13.1, -10.9, -8.7, -6.5, 6.5, 8.7, 10.9, 13.1];
             yardTracks.forEach(x => {
                 quad(project(x - 0.85, 0.005, z1), project(x + 0.85, 0.005, z1), project(x + 0.85, 0.005, z0), project(x - 0.85, 0.005, z0), '#48433e');
@@ -1391,24 +1423,24 @@ function drawSky() {
                 drawRail(x + 0.55);
             });
 
-            // Wooden sleepers, with a little tone variation; yard sleepers only while they still read
-            const yardSleeperZ = player.z + 26;
-            for (let z = Math.floor(z0); z < z1; z += 1.6) {
+            // Sleepers — denser near camera for SS rail-feel; yard sleepers cut off far
+            const yardSleeperZ = player.z + 28;
+            for (let z = Math.floor(z0); z < z1; z += 1.45) {
                 const t = hash01(z * 3.7);
                 const p1 = project(-3.05, 0.02, z);
                 const p2 = project(3.05, 0.02, z);
-                const p3 = project(3.05, 0.02, z + 0.38);
-                const p4 = project(-3.05, 0.02, z + 0.38);
-                if (p1) quad(p1, p2, p3, p4, t > 0.72 ? '#7a5f40' : t > 0.4 ? '#8d6e4a' : '#98784f', '#5d4037');
+                const p3 = project(3.05, 0.02, z + 0.36);
+                const p4 = project(-3.05, 0.02, z + 0.36);
+                if (p1) quad(p1, p2, p3, p4, t > 0.7 ? '#7a5f40' : '#8d6e4a', '#5d4037');
 
                 if (z < yardSleeperZ) {
                     yardTracks.forEach(x => {
-                        quad(project(x - 0.82, 0.015, z), project(x + 0.82, 0.015, z), project(x + 0.82, 0.015, z + 0.28), project(x - 0.82, 0.015, z + 0.28), '#594432');
+                        quad(project(x - 0.82, 0.015, z), project(x + 0.82, 0.015, z), project(x + 0.82, 0.015, z + 0.26), project(x - 0.82, 0.015, z + 0.26), '#594432');
                     });
                 }
             }
 
-            // 3 Player Rails (untouched)
+            // 3 Player Rails (untouched offsets)
             for (let i = 0; i < 3; i++) {
                 const x = LANE_X[i];
                 drawRail(x - 0.62);
@@ -1419,13 +1451,16 @@ function drawSky() {
             drawPlatform(-4.05, -3.25, z0, z1);
             drawPlatform(3.25, 4.05, z0, z1);
 
-            // Aerial perspective: the far end of the yard sinks into the haze
-            const fade = ctx.createLinearGradient(0, HORIZON, 0, HORIZON + 155);
-            fade.addColorStop(0, 'rgba(224,236,244,0.85)');
-            fade.addColorStop(0.34, 'rgba(214,229,239,0.33)');
+            // Colorful city walls flanking the yard — the SS "you're in a city" cue
+            drawCityWalls();
+
+            // Soft far fade (lighter than v1 so city walls stay readable)
+            const fade = ctx.createLinearGradient(0, HORIZON, 0, HORIZON + 130);
+            fade.addColorStop(0, 'rgba(228,240,248,0.7)');
+            fade.addColorStop(0.4, 'rgba(220,234,244,0.25)');
             fade.addColorStop(1, 'rgba(210,226,237,0)');
             ctx.fillStyle = fade;
-            ctx.fillRect(0, HORIZON, W, 155);
+            ctx.fillRect(0, HORIZON, W, 130);
         }
 
         function drawRail(x) {
@@ -1440,12 +1475,12 @@ function drawSky() {
             quad(project(edge - 0.08, 0.09, z1), project(edge + 0.08, 0.09, z1), project(edge + 0.08, 0.09, z0), project(edge - 0.08, 0.09, z0), '#f1c40f');
         }
 
-                function drawScenery(s) {
-            const f = fogAmt(s.z);                       // distance tint: far props go pale
+        function drawScenery(s) {
+            const f = fogAmt(s.z);
             const F = hex => fog(hex, f);
             const off = s.off || 0;
             const v = s.v != null ? s.v : 0.5;
-            const x = s.side * ((s.kind === 'fence' ? 4.25 : 4.65) + off);
+            const x = s.side * ((s.kind === 'fence' ? 4.25 : s.kind === 'building' ? 6.8 : 4.65) + off);
 
             if (s.kind === 'signal') {
                 box(x - 0.12, x + 0.12, 0, 3.7, s.z, s.z + 0.18, F('#515a5a'), F('#212f3d'), F('#85929e'));
@@ -1453,7 +1488,7 @@ function drawSky() {
                 ['#e74c3c', '#f1c40f', '#2ecc71'].forEach((color, i) => {
                     const p = project(x, 3.38 - i * 0.3, s.z - 0.06);
                     if (p) {
-                        ctx.fillStyle = fog(color, f * 0.5);
+                        ctx.fillStyle = fog(color, f * 0.45);
                         ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(2, p.s * 0.075), 0, Math.PI * 2); ctx.fill();
                     }
                 });
@@ -1463,7 +1498,7 @@ function drawSky() {
                 box(Math.min(a0, a1), Math.max(a0, a1), 4.15, 4.3, s.z, s.z + 0.16, F('#566573'), F('#1a252f'), F('#85929e'));
                 const p = project(x - s.side * 0.55, 4.05, s.z);
                 if (p) {
-                    ctx.fillStyle = fog('#fff3b0', f * 0.4);
+                    ctx.fillStyle = fog('#fff3b0', f * 0.35);
                     ctx.beginPath(); ctx.arc(p.x, p.y, p.s * 0.18, 0, Math.PI * 2); ctx.fill();
                 }
             } else if (s.kind === 'gantry') {
@@ -1477,7 +1512,6 @@ function drawSky() {
                 box(x - 0.055, x + 0.055, 0.45, 0.53, s.z, s.z + 5, F('#626b70'), F('#30383c'), F('#91999d'));
                 box(x - 0.055, x + 0.055, 1.1, 1.18, s.z, s.z + 5, F('#626b70'), F('#30383c'), F('#91999d'));
             } else if (s.kind === 'catenary') {
-                // Mast with a short arm that stays outside the lanes, plus a run of wire along the side
                 const h = 5.0 + v * 1.2;
                 box(x - 0.09, x + 0.09, 0, h, s.z, s.z + 0.16, F('#5b656b'), F('#1e262b'), F('#8e989d'));
                 box(x - 0.075, x + 0.075, h * 0.52, h * 0.58, s.z, s.z + 0.14, F('#5b656b'), F('#1e262b'), F('#8e989d'));
@@ -1485,6 +1519,21 @@ function drawSky() {
                 box(Math.min(x, armIn), Math.max(x, armIn), h - 0.34, h - 0.22, s.z + 0.02, s.z + 0.14, F('#6b757b'), F('#232c31'), F('#98a2a7'));
                 box(armIn - 0.05, armIn + 0.05, h - 0.62, h - 0.3, s.z + 0.03, s.z + 0.13, F('#8d9599'), F('#3b4348'), F('#b9c0c3'));
                 box(x - 0.025, x + 0.025, h - 0.28, h - 0.24, s.z, s.z + 11, F('#3f474c'), F('#262d31'), F('#5a6267'), true);
+            } else if (s.kind === 'billboard') {
+                // Tall colorful ad board — classic SS trackside prop
+                const h = 3.8 + v * 1.8;
+                box(x - 0.08, x + 0.08, 0, h, s.z, s.z + 0.14, F('#566573'), F('#1a252f'), F('#85929e'));
+                const cols = ['#e74c3c', '#3498db', '#f1c40f', '#9b59b6', '#1abc9c'];
+                const c = cols[(v * cols.length) | 0];
+                box(x - 1.35, x + 1.35, h - 0.15, h + 2.1, s.z - 0.05, s.z + 0.2, F(c), F('#1a252f'), F('#ecf0f1'));
+                box(x - 1.1, x + 1.1, h + 0.25, h + 1.55, s.z - 0.08, s.z + 0.08, F('#ecf0f1'), F('#bdc3c7'), F('#ffffff'));
+            } else if (s.kind === 'building') {
+                // Extra mid-distance facade accent (city walls already continuous)
+                const pal = BLD_PAL[(v * BLD_PAL.length) | 0];
+                const h = 6 + v * 5;
+                const w = 1.6 + v * 1.2;
+                box(x - w, x + w, 0, h, s.z, s.z + 3.5 + v * 2, F(pal.wall), F(pal.dark), F(pal.top));
+                box(x - w * 0.35, x + w * 0.35, h * 0.35, h * 0.35 + 1.1, s.z - 0.05, s.z + 0.05, F(pal.win), F('#2c3e50'), F('#d5e8f0'));
             } else if (s.kind === 'hut') {
                 const w = 1.1 + v * 0.6, h = 1.7 + v * 0.5;
                 box(x - w, x + w, 0, h, s.z, s.z + 2.2 + v, F('#8a7461'), F('#4b3f34'), F('#a4907d'));
@@ -1496,7 +1545,6 @@ function drawSky() {
                     ctx.fillRect(p.x - p.s * 0.06, p.y - p.s * 0.06, p.s * 0.12, p.s * 0.12);
                 }
             } else if (s.kind === 'crates') {
-                // Stack of sleepers / crates in the yard
                 const n = 2 + ((v * 3) | 0);
                 for (let i = 0; i < n; i++) {
                     const dy = i * 0.26;
@@ -1514,15 +1562,12 @@ function drawSky() {
                     ctx.arc(p.x - r * 0.8, p.y + r * 0.3, r * 0.72, 0, Math.PI * 2);
                     ctx.arc(p.x + r * 0.8, p.y + r * 0.25, r * 0.66, 0, Math.PI * 2);
                     ctx.fill();
-                    ctx.fillStyle = fog('#2f4429', f);
-                    ctx.beginPath(); ctx.arc(p.x + r * 0.2, p.y + r * 0.55, r * 0.5, 0, Math.PI * 2); ctx.fill();
                 }
             } else if (s.kind === 'sign') {
-                // Milepost / speed board
                 box(x - 0.06, x + 0.06, 0, 1.5, s.z, s.z + 0.12, F('#6b7175'), F('#33393c'), F('#949a9e'));
                 box(x - 0.34, x + 0.34, 1.5, 2.06, s.z - 0.02, s.z + 0.1, F('#e8eced'), F('#9aa1a4'), F('#f6f8f8'));
                 const p = project(x, 1.78, s.z - 0.03);
-                if (p && f < 0.6) {
+                if (p && f < 0.55) {
                     ctx.fillStyle = fog('#22303a', f);
                     ctx.fillRect(p.x - p.s * 0.11, p.y - p.s * 0.045, p.s * 0.22, p.s * 0.09);
                 }
@@ -1536,6 +1581,7 @@ function drawSky() {
                 box(x - 0.95, x + 0.95, h, h + 1.5, s.z + 0.1, s.z + 1.95, F('#7a5a3c'), F('#3f2d1d'), F('#93714f'));
                 box(x - 1.05, x + 1.05, h + 1.5, h + 1.72, s.z, s.z + 2.05, F('#3f4a4f'), F('#222a2e'), F('#57646a'));
             } else {
+                // equipment fallback
                 box(x - 0.5, x + 0.5, 0, 0.8, s.z, s.z + 0.8, F('#6c7275'), F('#373d40'), F('#a5aaac'));
                 box(x - 0.35, x + 0.35, 0.8, 1.35, s.z + 0.12, s.z + 0.65, F('#8d9497'), F('#4e5558'), F('#c4c8ca'));
             }
